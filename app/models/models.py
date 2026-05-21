@@ -13,4 +13,8 @@ class FAQResponse(BaseModel):
     workspace_id: int
     workspace_name: str
     question: str
-    answer: str
+    cluster_id: Optional[int] = None
+    cluster_size: Optional[int] = None
+    keywords: Optional[List[str]] = None
+    confidence: Optional[float] = None
+    metadata: Optional[Dict[str, Any]] = None

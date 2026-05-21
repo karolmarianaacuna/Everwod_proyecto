@@ -1,0 +1,16 @@
+[Unit]
+Description=Run Jobs Scheduler for Everwod
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/Users/julianag/EverwodIA/Everwod_proyecto
+# Replace 'youruser' with the system user that should run the process
+User=youruser
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/env python3 /Users/julianag/EverwodIA/Everwod_proyecto/run_jobs.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -87,7 +87,6 @@ def generate_faq_embeddings(request: IngestRequest):
             "workspace_name": faq["workspace_name"],
 
             "question": faq["question"],
-            "answer": faq["answer"],
 
             "text": text,
 
@@ -154,7 +153,6 @@ def find_similar_faqs(
         results.append({
 
             "question": faq["question"],
-            "answer": faq["answer"],
 
             "similarity": similarity,
 

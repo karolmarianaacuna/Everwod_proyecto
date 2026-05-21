@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     )
 
     
-    db_name: str = "db_everwod"
+    db_name: str = "everwod"
     db_user: str = "postgres"
-    db_password: str = "1234"
+    db_password: str = "123456"
     db_host: str = "localhost"
     db_port: int = 5432
 

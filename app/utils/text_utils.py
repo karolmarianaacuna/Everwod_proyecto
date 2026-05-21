@@ -21,14 +21,5 @@ def extract_message_text(message):
 
 #traer las faqs de la base de datos
 def extract_faq_text(faq):
-
     question = faq.get("question", "")
-    answer = faq.get("answer", "")
-
-    text = f"""
-    Pregunta: {question}
-
-    Respuesta: {answer}
-    """
-
-    return text.strip()
+    return question.strip()

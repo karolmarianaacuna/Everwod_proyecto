@@ -61,6 +61,7 @@ Tu tarea:
 - Máximo 15 palabras
 - Debe iniciar con ¿ y terminar con ?
 - En español
+- No debes escribir nombres propios, datos específicos (precios, horarios, links, correos o teléfonos) ni información que no esté presente en los mensajes del cluster.
 
 Responde SOLO con la pregunta.
 """
