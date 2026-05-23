@@ -38,8 +38,8 @@ def refine_question_to_faq(
 
     #Usa el LLM para convertir el medoide y los mensajes del cluster en una pregunta FAQ profesional.
     
-    workspace_name     = workspace_context.get("name", "la empresa") if workspace_context else "la empresa"
-    workspace_category = workspace_context.get("category", "") if workspace_context else ""
+    workspace_name     = workspace_context.get("name") if workspace_context else "la empresa"
+    workspace_category = workspace_context.get("category") if workspace_context else ""
 
     ejemplos = "\n".join(
         f"- {msg}"
@@ -97,16 +97,36 @@ def _format_fallback_question(text: str) -> str:
 
 def generate_answer_with_llm(
     question: str,
-    workspace_context: Optional[dict] = None,
+    workspace_context: dict,
+    existing_answers: list[str],
+    agent_texts: list[str],
 ) -> str:
 
     #Usa el LLM para generar una respuesta profesional a la pregunta FAQ.
-    workspace_name = workspace_context.get("name", "la empresa") if workspace_context else "la empresa"
+    workspace_name = workspace_context.get("name", "la empresa")
+
+    contexto_respuestas = "\n".join(
+        f"- {answer}"
+        for answer in existing_answers[:10]
+        if answer
+    )
+
+    contexto_textos = "\n".join(
+        f"- {text}"
+        for text in agent_texts[:5]
+        if text
+    )
 
     prompt = f"""
 Eres un asistente profesional de atención al cliente.
 
 Empresa: {workspace_name}
+
+Información del negocio:
+{contexto_textos}
+
+Respuestas que ya maneja la empresa:
+{contexto_respuestas}
 
 Pregunta: {question}
 

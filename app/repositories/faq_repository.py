@@ -5,6 +5,7 @@ from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
+
 def get_existing_faqs(workspace_id: int, limit: int = 1000) -> list:
 
     query = """
@@ -306,5 +307,107 @@ def get_messages_by_workspace_id(workspace_id: int, limit: int = 1000) -> list:
         return []
         
     finally:
+        if conn:
+            conn.close()
+            
+            
+            
+def get_existing_faqs_answers(workspace_id: int, limit: int = 1000) -> list:
+    """
+    Obtiene las respuestas de FAQs existentes del workspace.
+    Se usa como contexto para el LLM y para deduplicación.
+    """
+    query = """
+        SELECT 
+            af.answer
+
+        FROM agent_faqs af
+
+        INNER JOIN agents a
+            ON af.agent_id = a.id
+
+        INNER JOIN workspaces w
+            ON a.workspace_id = w.id
+
+        WHERE w.id = %s
+            AND af.deleted_at IS NULL
+
+        ORDER BY af.created_at DESC
+        LIMIT %s
+    """
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(query, (workspace_id, limit))
+
+        rows = cur.fetchall()
+
+        cur.close()
+
+        return rows
+
+    except Exception as e:
+
+        logger.error(f"Error obteniendo respuestas de FAQs: {e}", exc_info=True)
+
+        return []
+
+    finally:
+
+        if conn:
+            conn.close()
+
+
+def get_agent_texts(workspace_id: int) -> list:
+    """
+    Obtiene los textos del agente del workspace.
+    Se usa como contexto adicional para el LLM.
+    """
+    query = """
+        SELECT 
+            at.text
+
+        FROM agent_texts at
+
+        INNER JOIN agents a
+            ON at.agent_id = a.id
+
+        INNER JOIN workspaces w
+            ON a.workspace_id = w.id
+
+        WHERE w.id = %s
+            AND a.deleted_at IS NULL
+
+        ORDER BY at.created_at DESC
+    """
+
+    conn = None
+
+    try:
+
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(query, (workspace_id,))
+
+        rows = cur.fetchall()
+
+        cur.close()
+
+        return rows
+
+    except Exception as e:
+
+        logger.error(f"Error obteniendo textos del agente: {e}", exc_info=True)
+
+        return []
+
+    finally:
+
         if conn:
             conn.close()

@@ -5,8 +5,11 @@ import numpy as np
 from app.core.config import settings
 from app.models.models import FAQResponse
 from app.repositories.faq_repository import (
+    get_agent_texts,
+    get_existing_faqs_answers,
     save_faq,
     get_existing_faqs,
+    get_existing_faqs_answers,
     get_messages_by_workspace_id,
     faq_exists,
     get_all_workspaces,
@@ -151,6 +154,9 @@ class PipelineService:
             logger.info("🔍 Paso 6: Cargando FAQs existentes...")
             self._load_existing_faqs(workspace_id)
             
+            existing_answers = [row["answer"] for row in get_existing_faqs_answers(workspace_id)]
+            agent_texts      = [row["text"] for row in get_agent_texts(workspace_id)]
+            
             # Paso 7: Obtener agent_id para guardar FAQs
             logger.info("🔐 Paso 7: Obteniendo agent ID...")
             agent_id = get_first_agent_id(workspace_id)
@@ -201,6 +207,17 @@ class PipelineService:
                         duplicates_found += 1
                     
                     # Generar respuesta
+                    
+                    # Generar respuesta
+                    logger.info("  Generando respuesta FAQ...")
+                    faq_answer = generate_answer_with_llm(
+                        faq_question,
+                        self.workspace_context,
+                        existing_answers,
+                        agent_texts
+                    
+                    )
+                    logger.info(f"  ✓ Respuesta: {faq_answer[:80]}...")
                     # Crear objeto FAQ (sin campo `answer`)
                     faq = FAQResponse(
                         workspace_id=workspace_id,
