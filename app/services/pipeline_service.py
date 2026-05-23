@@ -1,17 +1,9 @@
-"""
-Pipeline Service v2 - Orquestador principal del proceso de ingesta de FAQs
-Actualizado para trabajar con PostgreSQL
-"""
-
 import logging
 from typing import Optional, List, Dict
 import numpy as np
 
 from app.core.config import settings
-from app.models.models import (
-    IngestRequest,
-    FAQResponse,
-)
+from app.models.models import FAQResponse
 from app.repositories.faq_repository import (
     save_faq,
     get_existing_faqs,
@@ -63,7 +55,7 @@ class PipelineService:
         4. Generación de preguntas FAQ
         5. Deduplicación
         6. Generación de respuestas
-        7. Guardado en BD
+        
         
         Args:
             workspace_id: ID del workspace a procesar
