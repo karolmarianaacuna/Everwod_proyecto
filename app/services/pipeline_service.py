@@ -21,7 +21,7 @@ from app.repositories.faq_repository import (
     get_workspace_context,
     get_first_agent_id,
 )
-from app.services.cleaning_service import clean_text, find_keywords
+from app.services.cleaning_service import clean_text
 from app.services.embedding_service import (
     generate_embedding,
     cosine_similarity,
@@ -216,7 +216,6 @@ class PipelineService:
                         question=faq_question,
                         cluster_id=cluster_id,
                         cluster_size=len(cluster_data["messages"]),
-                        keywords=find_keywords(medoid),
                         confidence=self._calculate_cluster_confidence(
                             cluster_data["embeddings"]
                         ),

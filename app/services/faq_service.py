@@ -3,22 +3,14 @@ from typing import Optional
 
 from app.core.config import settings
 
-# ── Constantes Ollama ────────────────────────────────────────────────────────
-OLLAMA_URL           = "http://localhost:11434/api/generate"
-OLLAMA_MODEL         = settings.faq_llm_model
-OLLAMA_TIMEOUT       = 60
-MAX_CLUSTER_MESSAGES = 10
-
-
-# ── Conexión con Ollama ──────────────────────────────────────────────────────
-
+#Conexión con Ollama 
 def _generate_with_ollama(prompt: str) -> str:
     #Envía un prompt a Ollama y retorna el texto generado.
     try:
         response = requests.post(
-            OLLAMA_URL,
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False},
-            timeout=OLLAMA_TIMEOUT
+            settings.ollama_url,
+            json={"model": settings.ollama_model, "prompt": prompt, "stream": False},
+            timeout=settings.ollama_timeout
         )
         response.raise_for_status()
         return response.json().get("response", "").strip()
@@ -28,8 +20,8 @@ def _generate_with_ollama(prompt: str) -> str:
         return ""
 
 
-# ── Generación de pregunta FAQ ───────────────────────────────────────────────
 
+# Generación de pregunta FAQ
 def refine_question_to_faq(
     medoid_message: str,
     cluster_messages: list[str],
@@ -43,11 +35,11 @@ def refine_question_to_faq(
 
     ejemplos = "\n".join(
         f"- {msg}"
-        for msg in cluster_messages[:MAX_CLUSTER_MESSAGES]
+        for msg in cluster_messages[:settings.max_cluster_messages]
     )
 
     prompt = f"""
-Eres un experto en generación de preguntas FAQ.
+Eres un experto en generación de preguntas FAQ para empresas.
 
 Empresa: {workspace_name}
 Categoría: {workspace_category}
@@ -60,8 +52,8 @@ Tu tarea:
 - Clara y profesional
 - Máximo 15 palabras
 - Debe iniciar con ¿ y terminar con ?
-- En español
-- No debes escribir nombres propios, datos específicos (precios, horarios, links, correos o teléfonos) ni información que no esté presente en los mensajes del cluster.
+- En español o ingles segun sea el caso 
+- No incluyas nombres propios, datos específicos (precios, horarios, links, correos o teléfonos) ni información que no esté presente en los mensajes del cluster.
 
 Responde SOLO con la pregunta.
 """

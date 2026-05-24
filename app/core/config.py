@@ -10,32 +10,50 @@ class Settings(BaseSettings):
     )
 
     
-    db_name: str = "everwod"
-    db_user: str = "postgres"
-    db_password: str = "123456"
-    db_host: str = "localhost"
-    db_port: int = 5432
+    db_name: str
+    db_user: str  
+    db_password: str 
+    db_host: str 
+    db_port: int 
 
     
-    faq_embedding_model: str = "intfloat/multilingual-e5-base"
-    min_embedding_words: int = 2
+    faq_embedding_model: str
+    min_embedding_words: int 
     
 
     #Thresholds
-    faq_similarity_very_similar :float = 0.72
-    faq_similarity_related :float = 0.58
-    faq_similarity_medium :float = 0.45
+    faq_similarity_very_similar :float 
+    faq_similarity_related :float 
+    faq_similarity_medium :float
 
-    faq_llm_model: str = "qwen2.5:7b"
-
-    
-    min_text_length: int = 5
+    faq_llm_model: str 
+    min_text_length: int 
 
    
-    batch_size: int = 32
-    embedding_batch_size: int = 64
-    enable_cache: bool = True
-    cache_ttl_hours: int = 24
+    batch_size: int 
+    embedding_batch_size: int 
+    enable_cache: bool 
+    cache_ttl_hours: int 
+
+    clustering_small_dataset_threshold: int  #Si hay menos de 20 mensajes, usa DBSCAN. Si hay 20 o más, usa HDBSCAN
+    clustering_min_cluster_messages: int 
+
+    clustering_dbscan_eps: float  #Este controla qué tan cerca deben estar los mensajes.
+    clustering_dbscan_min_samples: int 
+
+    clustering_hdbscan_min_cluster_size: int #grupo minimo de mensajes
+    clustering_hdbscan_min_samples: int 
+    clustering_hdbscan_epsilon: float
+
+    ollama_url: str
+    ollama_model: str
+    ollama_timeout: int
+    max_cluster_messages: int
+    
+     
+
+
+
 
 
 

@@ -1,57 +1,58 @@
 import logging
 import numpy as np
+
 from sklearn.cluster import DBSCAN, HDBSCAN
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
 from sklearn.preprocessing import normalize
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ── Constantes ───────────────────────────────────────────────────────────────
-SMALL_DATASET_THRESHOLD  = 20
-MIN_CLUSTER_MESSAGES     = 2
-DBSCAN_EPS               = 0.35
-DBSCAN_MIN_SAMPLES       = 1
-HDBSCAN_MIN_CLUSTER_SIZE = 2
-HDBSCAN_MIN_SAMPLES      = 1
-HDBSCAN_EPSILON          = 0.05
-DUPLICATE_THRESHOLD      = 0.85
-
-
-# ── Clustering ───────────────────────────────────────────────────────────────
 
 def cluster_embeddings(
     embeddings: list[list[float]],
-    min_cluster_size: int = HDBSCAN_MIN_CLUSTER_SIZE,
-    min_samples: int = HDBSCAN_MIN_SAMPLES,
+    min_cluster_size: int | None = None,
+    min_samples: int | None = None,
 ) -> list[int]:
-    
-    #Agrupa los embeddings usando HDBSCAN. Para datasets muy pequeños usa DBSCAN. En conjuntos moderados se omite UMAP para evitar distorsión.
+
     n = len(embeddings)
 
-    if not embeddings or n < MIN_CLUSTER_MESSAGES:
+    if not embeddings or n < settings.clustering_min_cluster_messages:
         logger.warning(f"Dataset demasiado pequeño para clustering: {n} mensajes")
         return [-1] * n
 
-    try:
-        X = normalize(np.array(embeddings), norm="l2")
+    min_cluster_size = min_cluster_size or settings.clustering_hdbscan_min_cluster_size
+    min_samples = min_samples or settings.clustering_hdbscan_min_samples
 
-        if n < SMALL_DATASET_THRESHOLD:
+    try:
+        X = normalize(np.array(embeddings, dtype=np.float64), norm="l2")
+
+        if n < settings.clustering_small_dataset_threshold:
             logger.info(f"Dataset pequeño ({n} msgs) → usando DBSCAN")
-            clusterer = DBSCAN(eps=DBSCAN_EPS, min_samples=min_samples, metric="cosine")
+            clusterer = DBSCAN(
+                eps=settings.clustering_dbscan_eps,
+                min_samples=settings.clustering_dbscan_min_samples,
+                metric="cosine"
+            )
+            labels = clusterer.fit_predict(X).tolist()
+
         else:
             logger.info(f"Dataset moderado/grande ({n} msgs) → usando HDBSCAN")
+            # Precomputar matriz de distancias para evitar bug de sklearn HDBSCAN
+            dist_matrix = euclidean_distances(X).astype(np.float64)
             clusterer = HDBSCAN(
                 min_cluster_size=min_cluster_size,
                 min_samples=min_samples,
-                metric="cosine",
-                cluster_selection_epsilon=HDBSCAN_EPSILON,
+                metric="precomputed",
+                cluster_selection_epsilon=settings.clustering_hdbscan_epsilon,
                 cluster_selection_method="eom",
+                copy=True,  # silencia el FutureWarning
             )
-
-        labels = clusterer.fit_predict(X).tolist()
+            labels = clusterer.fit_predict(dist_matrix).tolist()
 
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        n_noise    = labels.count(-1)
+        n_noise = labels.count(-1)
         logger.info(f"Resultado → {n_clusters} clusters, {n_noise} mensajes como ruido")
 
         return labels
@@ -61,37 +62,37 @@ def cluster_embeddings(
         return [-1] * n
 
 
-# ── Agrupación de mensajes ───────────────────────────────────────────────────
-
 def group_messages_by_cluster(
     messages: list[str],
     embeddings: list[list[float]],
     labels: list[int],
 ) -> dict[int, dict]:
 
-    #Organiza los mensajes y sus vectores por cada grupo encontrado. Los mensajes de ruido (label == -1) se descartan.
     clusters: dict[int, dict] = {}
 
     for i, label in enumerate(labels):
         if label == -1:
             continue
+
         if label not in clusters:
-            clusters[label] = {"messages": [], "embeddings": []}
+            clusters[label] = {
+                "messages": [],
+                "embeddings": []
+            }
+
         clusters[label]["messages"].append(messages[i])
         clusters[label]["embeddings"].append(embeddings[i])
 
     logger.info(f"Grupos formados: {len(clusters)} clusters con mensajes válidos")
+
     return clusters
 
-
-# ── Representante del cluster ────────────────────────────────────────────────
 
 def get_representative_message(
     cluster_messages: list[str],
     cluster_embeddings: list[list[float]],
 ) -> str:
 
-    #Encuentra el medoide: el mensaje más céntrico del grupo. A diferencia del centroide, el medoide es un texto real del dataset.
     if not cluster_messages:
         return ""
 
@@ -108,15 +109,15 @@ def get_representative_message(
         return max(cluster_messages, key=len)
 
 
-# ── Deduplicación ────────────────────────────────────────────────────────────
-
 def is_duplicate_faq(
     new_question_emb: list[float],
     existing_faqs_embs: np.ndarray | None,
-    threshold: float = DUPLICATE_THRESHOLD,
+    threshold: float | None = None,
 ) -> bool:
-    
-    #Retorna True si la pregunta nueva es semánticamente duplicada de alguna FAQ existente en el workspace.
+
+    if threshold is None:
+        threshold = settings.clustering_duplicate_threshold
+
     if existing_faqs_embs is None or len(existing_faqs_embs) == 0:
         return False
 

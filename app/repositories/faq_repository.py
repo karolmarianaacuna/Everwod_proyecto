@@ -5,6 +5,8 @@ from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
+
+#Obtener datos de FAQs existentes para un workspace
 def get_existing_faqs(workspace_id: int, limit: int = 1000) -> list:
 
     query = """
@@ -56,10 +58,10 @@ def get_existing_faqs(workspace_id: int, limit: int = 1000) -> list:
             conn.close()
 
 
+
+#Guarda una nueva FAQ en la base de datos
 def save_faq(workspace_id: int, question: str, agent_id: int, metadata: dict = None) -> int:
     """
-    Guarda una nueva FAQ en la base de datos
-    
     Args:
         workspace_id: ID del workspace
         question: Pregunta de la FAQ
@@ -100,11 +102,9 @@ def save_faq(workspace_id: int, question: str, agent_id: int, metadata: dict = N
         if conn:
             conn.close()
 
-
+#Verifica si existe una FAQ similar en el workspace
 def faq_exists(workspace_id: int, question: str) -> bool:
     """
-    Verifica si existe una FAQ similar en el workspace
-    
     Args:
         workspace_id: ID del workspace
         question: Pregunta a verificar
@@ -140,21 +140,16 @@ def faq_exists(workspace_id: int, question: str) -> bool:
         if conn:
             conn.close()
 
-
+#Obtiene todos los workspaces del sistema
 def get_all_workspaces() -> list:
-    """
-    Obtiene todos los workspaces del sistema
     
-    Returns:
-        Lista de workspaces con sus datos
-    """
     conn = None
     
     try:
         conn = get_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        query = "SELECT id, name FROM workspaces WHERE deleted_at IS NULL ORDER BY name"
+        query = "SELECT id, name, logo, category, active FROM workspaces"
         cur.execute(query)
         
         rows = cur.fetchall()
@@ -171,17 +166,9 @@ def get_all_workspaces() -> list:
         if conn:
             conn.close()
 
-
+#  Trae la información de una sola empresa.
 def get_workspace_context(workspace_id: int) -> dict:
-    """
-    Obtiene el contexto completo de un workspace
     
-    Args:
-        workspace_id: ID del workspace
-        
-    Returns:
-        Diccionario con información del workspace
-    """
     conn = None
     
     try:
@@ -259,16 +246,7 @@ def get_first_agent_id(workspace_id: int) -> int:
 
 
 def get_messages_by_workspace_id(workspace_id: int, limit: int = 1000) -> list:
-    """
-    Obtiene los mensajes de un workspace desde la base de datos
-    
-    Args:
-        workspace_id: ID del workspace
-        limit: Cantidad máxima de mensajes a obtener
-        
-    Returns:
-        Lista de mensajes con el texto extraído del JSONB
-    """
+   
     query = """
         SELECT 
             w.id,

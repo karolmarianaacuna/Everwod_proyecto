@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -107,6 +108,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Agregar middleware para CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Inicializar servicio
 pipeline_service = PipelineService()
 
@@ -167,54 +177,46 @@ def detailed_health_check():
 @app.get(
     "/api/v1/workspaces",
     tags=["Workspaces"],
-    summary="Listar todos los workspaces"
+    summary="Obtener lista de workspaces"
 )
-def list_workspaces():
-    """
-    Retorna la lista de todos los workspaces disponibles.
-    
-    Returns:
-        Lista de workspaces
-    """
+
+def get_workspaces():
     try:
         logger.info("📋 Obteniendo lista de workspaces...")
-        
+
         workspaces = get_all_workspaces()
-        
-        logger.info(f"✅ Se encontraron {len(workspaces)} workspaces")
+
+        if not workspaces:
+            return {
+                "workspaces": [],
+                "total": 0,
+                "timestamp": datetime.now().isoformat()
+            }
+
         return {
-            "status": "success",
-            "count": len(workspaces),
             "workspaces": workspaces,
+            "total": len(workspaces),
             "timestamp": datetime.now().isoformat()
         }
-        
+
     except Exception as e:
-        logger.error(f"❌ Error obteniendo workspaces: {str(e)}", exc_info=True)
+        logger.error(
+            f"❌ Error obteniendo workspaces: {str(e)}",
+            exc_info=True
+        )
+
         raise HTTPException(
             status_code=500,
             detail=f"Error fetching workspaces: {str(e)}"
         )
 
 
-@app.get(
-    "/api/v1/workspaces/{workspace_id}/faqs",
-    tags=["Workspaces"],
-    summary="Obtener FAQs sugeridas de un workspace"
-)
+#Este endpoint trea las FAQs existentes 
+@app.get( "/api/v1/workspaces/{workspace_id}/faqs",tags=["Workspaces"],summary="Obtener datos de FAQs existentes para un workspace")
 def get_workspace_faqs(workspace_id: int):
-    """
-    Retorna las FAQs generadas/sugeridas para un workspace específico.
-    Estas FAQs se generan a partir del análisis de los mensajes de los clientes.
-    
-    Args:
-        workspace_id: ID del workspace
-        
-    Returns:
-        Lista de FAQs generadas para el workspace
-    """
+
     try:
-        logger.info(f"🔍 Obteniendo FAQs para workspace {workspace_id}...")
+        logger.info(f"🔍 Obteniendo FAQs exixtentes para workspace {workspace_id}...")
         
         faqs = get_existing_faqs(workspace_id)
         
@@ -235,15 +237,8 @@ def get_workspace_faqs(workspace_id: int):
         )
 
 
-# ──────────────────────────────────────────────────────────────────────────
-# RUTAS - PIPELINE
-# ──────────────────────────────────────────────────────────────────────────
 
-@app.post(
-    "/api/v1/workspaces/{workspace_id}/analyze",
-    tags=["Workspaces"],
-    summary="Analizar mensajes y sugerir FAQs"
-)
+@app.post("/api/v1/workspaces/{workspace_id}/analyze", tags=["Workspaces"],summary="Analizar mensajes y sugerir FAQs")
 def analyze_and_suggest_faqs(workspace_id: int):
     """
     Analiza los mensajes de los clientes de un workspace y sugiere FAQs automáticamente.
@@ -256,15 +251,7 @@ def analyze_and_suggest_faqs(workspace_id: int):
     5. Generar preguntas FAQ a partir de los clusters
     6. Generar respuestas con IA (Ollama)
     7. Guardar FAQs sugeridas en la base de datos
-    
-    Args:
-        workspace_id: ID del workspace a analizar
-        
-    Returns:
-        FAQs sugeridas y estadísticas del análisis
-        
-    Raises:
-        HTTPException: Si hay error en el análisis
+
     """
     try:
         logger.info(f"🔬 Analizando mensajes y sugiriendo FAQs para workspace {workspace_id}...")

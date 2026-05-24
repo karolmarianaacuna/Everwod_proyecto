@@ -4,9 +4,9 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 from app.core.config import settings
-from app.models.models import IngestRequest, FAQResponse
+from app.models.models import IngestRequest
 from app.repositories.faq_repository import get_existing_faqs
-from app.utils.text_utils import extract_faq_text
+from app.services.cleaning_service import clean_text
 
 
 
@@ -19,32 +19,26 @@ faq_related = settings.faq_similarity_related
 faq_medium = settings.faq_similarity_medium
 
 
-
 try:
-    
     logger.info(f"Loading embedding model: {multilingual_model}")
     model = SentenceTransformer(multilingual_model)
     logger.info("Embedding model loaded successfully")
 
 except Exception as error:
-    logger.error(f"Error loading embedding model: {error}")
+    logger.error(f"Error loading embedding model: {error}", exc_info=True)
     model = None
 
 
-#Se usa passage por que sae analizan conversaciones hosticas y el modelo fucniona o interpreta mejor con ets prefijo passage
-def generate_embedding(
-    text: str,
-    text_type: str = "passage" 
-):
-
+def generate_embedding(text: str, text_type: str = "passage") -> list | None:
     if not model:
         raise Exception("Embedding model not loaded")
 
-    if not text.strip():
+    cleaned_text = clean_text(text)
+
+    if not cleaned_text:
         return None
 
-    # Prefijos requeridos por E5
-    formatted_text = f"{text_type}: {text}"
+    formatted_text = f"{text_type}: {cleaned_text}"
 
     embedding = model.encode(
         formatted_text,
@@ -55,8 +49,7 @@ def generate_embedding(
     return embedding.tolist()
 
 
-def generate_faq_embeddings(request: IngestRequest):
-
+def generate_faq_embeddings(request: IngestRequest) -> list:
     workspace_id = request.workspace_id
 
     logger.info(f"Getting FAQs from workspace {workspace_id}")
@@ -68,28 +61,24 @@ def generate_faq_embeddings(request: IngestRequest):
     embeddings_data = []
 
     for faq in faqs:
+        question = str(faq.get("question", "")).strip()
 
-        # convertir faq a texto
-        text = extract_faq_text(faq)
-
-        if not text:
+        if not question:
             continue
 
-        # embedding FAQ = passage
         embedding = generate_embedding(
-            text,
+            question,
             text_type="passage"
         )
 
+        if embedding is None:
+            continue
+
         embeddings_data.append({
-
-            "workspace_id": faq["workspace_id"],
-            "workspace_name": faq["workspace_name"],
-
-            "question": faq["question"],
-
-            "text": text,
-
+            "workspace_id": faq.get("workspace_id"),
+            "workspace_name": faq.get("workspace_name"),
+            "question": question,
+            "text": question,
             "embedding": embedding
         })
 
@@ -98,20 +87,14 @@ def generate_faq_embeddings(request: IngestRequest):
     return embeddings_data
 
 
-
-
-
-#compara el embedding que crea y el que viene de la base de datos para no duplicar
-def cosine_similarity(vec1, vec2):
-
+def cosine_similarity(vec1: list, vec2: list) -> float:
     vec1 = np.array(vec1)
     vec2 = np.array(vec2)
 
     return float(np.dot(vec1, vec2))
 
 
-def interpret_similarity(score: float):
-
+def interpret_similarity(score: float) -> str:
     if score >= faq_very_similar:
         return "very_similar"
 
@@ -124,44 +107,40 @@ def interpret_similarity(score: float):
     return "low"
 
 
-
 def find_similar_faqs(
     query: str,
     embeddings_data: list,
     top_k: int = 5
-):
-
-    # embedding usuario = query
+) -> list:
     query_embedding = generate_embedding(
         query,
         text_type="query"
     )
 
+    if query_embedding is None:
+        return []
+
     results = []
 
     for faq in embeddings_data:
+        faq_embedding = faq.get("embedding")
+
+        if not faq_embedding:
+            continue
 
         similarity = cosine_similarity(
             query_embedding,
-            faq["embedding"]
-        )
-
-        similarity_type = interpret_similarity(
-            similarity
+            faq_embedding
         )
 
         results.append({
-
-            "question": faq["question"],
-
+            "question": faq.get("question"),
             "similarity": similarity,
-
-            "similarity_type": similarity_type
+            "similarity_type": interpret_similarity(similarity)
         })
 
-    # ordenar mayor a menor
     results.sort(
-        key=lambda x: x["similarity"],
+        key=lambda item: item["similarity"],
         reverse=True
     )
 
