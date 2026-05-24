@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List, Dict
+from typing import List
 import numpy as np
 
 from app.core.config import settings
@@ -7,14 +7,11 @@ from app.models.models import FAQResponse
 from app.repositories.faq_repository import (
     get_agent_texts,
     get_existing_faqs_answers,
-    save_faq,
     get_existing_faqs,
-    get_existing_faqs_answers,
     get_messages_by_workspace_id,
-    faq_exists,
-    get_all_workspaces,
     get_workspace_context,
-    get_first_agent_id,
+    get_first_agent_id
+
 )
 from app.services.cleaning_service import clean_text
 from app.services.embedding_service import (
@@ -188,8 +185,12 @@ class PipelineService:
                     faq_question = refine_question_to_faq(
                         medoid,
                         cluster_data["messages"],
-                        self.workspace_context
+                        self.workspace_context,
+                        agent_texts
                     )
+                    if not faq_question:
+                        logger.info(f"  ⏭️ Cluster {cluster_id} descartado (sin valor para FAQ)")
+                        continue
                     logger.info(f"  ✓ Pregunta: {faq_question}")
                     
                     # Verificar duplicados (solo para información, no para filtrar)
@@ -223,6 +224,7 @@ class PipelineService:
                         workspace_id=workspace_id,
                         workspace_name=self.workspace_context.get("name", ""),
                         question=faq_question,
+                        answer=faq_answer,  
                         cluster_id=cluster_id,
                         cluster_size=len(cluster_data["messages"]),
                         confidence=self._calculate_cluster_confidence(
@@ -384,8 +386,9 @@ class PipelineService:
             logger.warning(f"⚠️ Could not load existing FAQs: {e}")
             self.existing_faqs_embeddings = None
     
-    def _save_faqs(self, workspace_id: int, agent_id: int, faqs: List[FAQResponse]) -> int:
-        """Guarda las FAQs generadas en la BD"""
+    #Esto nadie lo utiliza 
+    """ def _save_faqs(self, workspace_id: int, agent_id: int, faqs: List[FAQResponse]) -> int:
+        
         saved_count = 0
         
         for faq in faqs:
@@ -407,7 +410,7 @@ class PipelineService:
                 logger.error(f"Error saving FAQ: {e}")
                 continue
         
-        return saved_count
+        return saved_count """
     
     def _calculate_cluster_confidence(self, embeddings: List[List[float]]) -> float:
         """

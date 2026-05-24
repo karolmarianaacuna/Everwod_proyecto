@@ -58,50 +58,6 @@ def get_existing_faqs(workspace_id: int, limit: int = 1000) -> list:
             conn.close()
 
 
-
-#Guarda una nueva FAQ en la base de datos
-def save_faq(workspace_id: int, question: str, agent_id: int, metadata: dict = None) -> int:
-    """
-    Args:
-        workspace_id: ID del workspace
-        question: Pregunta de la FAQ
-        agent_id: ID del agent
-        metadata: Datos adicionales (cluster_id, keywords, confidence, etc)
-        
-    Returns:
-        ID de la FAQ guardada, o None si hay error
-    """
-    conn = None
-    
-    try:
-        conn = get_connection()
-        cur = conn.cursor()
-        
-        query = """
-            INSERT INTO agent_faqs (agent_id, question, metadata, created_at)
-            VALUES (%s, %s, %s, NOW())
-            RETURNING id
-        """
-        
-        cur.execute(query, (agent_id, question, metadata))
-        faq_id = cur.fetchone()[0]
-        
-        conn.commit()
-        cur.close()
-        
-        logger.info(f"✅ FAQ guardada: {faq_id}")
-        return faq_id
-        
-    except Exception as e:
-        logger.error(f"Error guardando FAQ: {e}", exc_info=True)
-        if conn:
-            conn.rollback()
-        return None
-        
-    finally:
-        if conn:
-            conn.close()
-
 #Verifica si existe una FAQ similar en el workspace
 def faq_exists(workspace_id: int, question: str) -> bool:
     """
@@ -176,7 +132,7 @@ def get_workspace_context(workspace_id: int) -> dict:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         
         query = """
-            SELECT id, name, created_at 
+            SELECT id, name, category
             FROM workspaces 
             WHERE id = %s AND deleted_at IS NULL
         """
@@ -386,5 +342,71 @@ def get_agent_texts(workspace_id: int) -> list:
 
     finally:
 
+        if conn:
+            conn.close()
+
+
+def save_accepted_faq(agent_id: str, question: str, answer: str, metadata: dict = None) -> int:
+
+    """Guarda una FAQ aceptada en agent_faqs"""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        query = """
+            INSERT INTO agent_faqs (agent_id, question, answer, metadata, created_at)
+            VALUES (%s, %s, %s, %s, NOW())
+            RETURNING id
+        """
+        cur.execute(query, (agent_id, question, answer, metadata))
+        faq_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        logger.info(f"✅ FAQ aceptada guardada: {faq_id}")
+        return faq_id
+    except Exception as e:
+        logger.error(f"Error guardando FAQ aceptada: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+
+def save_rejected_faq(workspace_id: int, agent_id: str, question: str, answer: str, metadata: dict = None) -> int:
+    """Guarda una FAQ rechazada en rejected_faqs"""
+    conn = None
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        query = """
+            INSERT INTO rejected_faqs (
+                workspace_id, agent_id, question, answer,
+                cluster_id, cluster_size, confidence, rejected_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+            RETURNING id
+        """
+        cur.execute(query, (
+            workspace_id,
+            agent_id,
+            question,
+            answer,
+            metadata.get("cluster_id")   if metadata else None,
+            metadata.get("cluster_size")  if metadata else None,
+            metadata.get("confidence")    if metadata else None,
+        ))
+        rejected_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        logger.info(f"✅ FAQ rechazada guardada: {rejected_id}")
+        return rejected_id
+    except Exception as e:
+        logger.error(f"Error guardando FAQ rechazada: {e}", exc_info=True)
+        if conn:
+            conn.rollback()
+        return None
+    finally:
         if conn:
             conn.close()

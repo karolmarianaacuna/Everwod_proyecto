@@ -26,6 +26,7 @@ def refine_question_to_faq(
     medoid_message: str,
     cluster_messages: list[str],
     workspace_context: Optional[dict] = None,
+    agent_texts: list[str] = [],    # ← agregar
 ) -> str:
 
     #Usa el LLM para convertir el medoide y los mensajes del cluster en una pregunta FAQ profesional.
@@ -37,55 +38,68 @@ def refine_question_to_faq(
         f"- {msg}"
         for msg in cluster_messages[:settings.max_cluster_messages]
     )
+    contexto_negocio = "\n".join(
+        f"- {text}" for text in agent_texts[:5] if text
+    )
 
-    prompt = f"""
-Eres un experto en generación de preguntas FAQ para empresas.
 
-Empresa: {workspace_name}
+    prompt = f"""Eres un experto en análisis de conversaciones y generación de preguntas FAQ para empresas de atención al cliente.
+
+=== CONTEXTO DE LA EMPRESA ===
+Nombre: {workspace_name}
 Categoría: {workspace_category}
 
-Estos mensajes pertenecen al mismo tema:
+=== INFORMACIÓN REAL DEL NEGOCIO ===
+{contexto_negocio if contexto_negocio else "No hay información adicional disponible."}
+
+=== MENSAJE REPRESENTATIVO DEL TEMA ===
+{medoid_message}
+
+=== MENSAJES DEL CLUSTER ===
 {ejemplos}
 
-Tu tarea:
-- Generar UNA SOLA pregunta FAQ
-- Clara y profesional
-- Máximo 15 palabras
-- Debe iniciar con ¿ y terminar con ?
-- En español o ingles segun sea el caso 
-- No incluyas nombres propios, datos específicos (precios, horarios, links, correos o teléfonos) ni información que no esté presente en los mensajes del cluster.
+=== TU TAREA ===
+Usando la información real del negocio como referencia, analiza si los mensajes representan una duda o necesidad real que un cliente tendría sobre los servicios de {workspace_name}.
 
-Responde SOLO con la pregunta.
-"""
+=== CRITERIOS PARA MARCAR COMO INVALIDO ===
+Responde exactamente INVALIDO si los mensajes cumplen CUALQUIERA de estas condiciones:
+- Son saludos o despedidas (hola, buenos días, bye, gracias, etc.)
+- Son respuestas de una sola palabra (sí, no, ok, claro, listo, dale, etc.)
+- Son solo nombres, teléfonos, direcciones o datos de contacto
+- No tienen relación con los servicios reales de {workspace_name} descritos arriba
+- Son etiquetas del sistema: [PHONE], [EMAIL], [NAME], [URL], [CARD]
+- No tienen contexto suficiente para entender la intención del cliente
+
+=== CRITERIOS PARA GENERAR UNA PREGUNTA FAQ ===
+Si los mensajes SÍ representan una duda real:
+- Genera UNA SOLA pregunta FAQ, máximo 15 palabras
+- Redactada desde la perspectiva del cliente
+- Basada únicamente en los servicios reales descritos en la información del negocio
+- Detecta el idioma predominante de los mensajes y responde en ese idioma
+- Sin nombres propios, precios, horarios, links, correos ni teléfonos
+- Usable directamente en una sección FAQ pública sin edición
+
+=== FORMATO ===
+Solo la pregunta con signos de interrogación, o la palabra INVALIDO. Sin explicaciones."""
 
     try:
-        question = _generate_with_ollama(prompt).replace('"', '')
+        raw = _generate_with_ollama(prompt).strip().replace('"', '').replace("'", "")
 
-        if not question:
-            raise Exception("Respuesta vacía")
+        if not raw or "INVALIDO" in raw.upper():
+            return ""
 
-        if not question.startswith("¿"):
-            question = "¿" + question
-        if not question.endswith("?"):
-            question += "?"
+        question = raw.strip("?").strip("¿").strip()
+        question = f"¿{question}?" if "¿" in raw else f"{question}?"
 
         return question
 
     except Exception as e:
         print(f"❌ Error generando pregunta FAQ: {e}")
-        return _format_fallback_question(medoid_message)
+        return ""
 
 
-def _format_fallback_question(text: str) -> str:
-    text = text.strip().capitalize()
-    if not text.startswith("¿"):
-        text = "¿" + text
-    if not text.endswith("?"):
-        text += "?"
-    return text
 
-
-# ── Generación de respuesta FAQ ──────────────────────────────────────────────
+# Generación de respuesta FAQ 
 
 def generate_answer_with_llm(
     question: str,

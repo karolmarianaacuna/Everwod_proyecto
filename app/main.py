@@ -15,13 +15,13 @@ from app.core.config import settings
 from app.services.pipeline_service import PipelineService
 from app.services.job_service import FAQJobs, MaintenanceJobs
 from app.repositories.faq_repository import get_existing_faqs, get_all_workspaces
+from app.repositories.faq_repository import save_accepted_faq, save_rejected_faq
+from app.models.models import FAQReviewRequest
+
 from app.models.models import (
     HealthCheckResponse,
     PipelineRequest,
-    PipelineResponse,
-    ReloadFAQsRequest,
-    FAQResponse,
-    WorkspaceItem,
+    PipelineResponse
 )
 
 # Configurar logging
@@ -200,6 +200,42 @@ def get_workspace_faqs(workspace_id: int):
             detail=f"Error fetching FAQs: {str(e)}"
         )
 
+
+
+
+@app.post("/api/v1/faqs/review")
+def review_faq(request: FAQReviewRequest):
+    if request.action not in ("accept", "reject"):
+        raise HTTPException(status_code=400, detail="action debe ser 'accept' o 'reject'")
+
+    metadata = {
+        "cluster_id":   request.cluster_id,
+        "cluster_size": request.cluster_size,
+        "confidence":   request.confidence,
+    }
+
+    if request.action == "accept":
+        result_id = save_accepted_faq(
+            agent_id=request.agent_id,
+            question=request.question,
+            answer=request.answer,
+            metadata=metadata,
+        )
+        if not result_id:
+            raise HTTPException(status_code=500, detail="Error guardando FAQ aceptada")
+        return {"status": "accepted", "faq_id": result_id}
+
+    else:
+        result_id = save_rejected_faq(
+            workspace_id=request.workspace_id,
+            agent_id=request.agent_id,
+            question=request.question,
+            answer=request.answer,
+            metadata=metadata,
+        )
+        if not result_id:
+            raise HTTPException(status_code=500, detail="Error guardando FAQ rechazada")
+        return {"status": "rejected", "rejected_id": result_id}
 
 
 @app.post("/api/v1/workspaces/{workspace_id}/analyze", tags=["Workspaces"],summary="Analizar mensajes y sugerir FAQs")

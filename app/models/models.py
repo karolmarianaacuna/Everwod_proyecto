@@ -27,16 +27,29 @@ class HealthCheckResponse(BaseModel):
     version: str
 
 
+
+
 class FAQResponse(BaseModel):
     """Una FAQ que generamos como resultado del pipeline"""
     workspace_id: int
     workspace_name: str
     question: str
+    answer: Optional[str] = None   
     cluster_id: Optional[int] = None
     cluster_size: Optional[int] = None
     keywords: Optional[List[str]] = None
     confidence: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
+
+class FAQReviewRequest(BaseModel):
+    workspace_id: int
+    agent_id: str          # uuid
+    question: str
+    answer: str
+    action: str            # "accept" o "reject"
+    cluster_id: Optional[int] = None
+    cluster_size: Optional[int] = None
+    confidence: Optional[float] = None
 
 
 class PipelineResponse(BaseModel):
