@@ -71,6 +71,6 @@ pip install -r requirements.txt
 pytest tests/test_cleaning.py
 pytest tests/test_cleaning_embedding.py
 pytest tests/test_embedding_utils.py
-python tests/test_clustering
-python tests/test_faq
+pytest tests/test_clustering.py
+pytest tests/test_faq.py
 

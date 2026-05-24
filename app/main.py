@@ -10,12 +10,19 @@ from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
 from app.core.config import settings
 from app.services.pipeline_service import PipelineService
 from app.services.job_service import FAQJobs, MaintenanceJobs
 from app.repositories.faq_repository import get_existing_faqs, get_all_workspaces
+from app.models.models import (
+    HealthCheckResponse,
+    PipelineRequest,
+    PipelineResponse,
+    ReloadFAQsRequest,
+    FAQResponse,
+    WorkspaceItem,
+)
 
 # Configurar logging
 logging.basicConfig(
@@ -23,49 +30,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# ──────────────────────────────────────────────────────────────────────────
-# MODELOS
-# ──────────────────────────────────────────────────────────────────────────
-
-class HealthCheckResponse(BaseModel):
-    """Respuesta de chequeo de salud"""
-    status: str
-    timestamp: str
-    version: str
-
-
-class PipelineRequest(BaseModel):
-    """Request para ejecutar el pipeline"""
-    workspace_id: int
-
-
-class PipelineResponse(BaseModel):
-    """Response del pipeline"""
-    workspace_id: int
-    status: str
-    faqs_generated: int
-    clusters_found: int
-
-
-class ReloadFAQsRequest(BaseModel):
-    """Request para recargar FAQs"""
-    workspace_id: int
-
-
-class FAQItem(BaseModel):
-    """Modelo para una FAQ"""
-    workspace_id: int
-    workspace_name: str
-    question: str
-    answer: str
-
-
-class WorkspaceItem(BaseModel):
-    """Modelo para un workspace"""
-    id: int
-    name: str
-    description: str | None = None
 
 
 # ──────────────────────────────────────────────────────────────────────────
