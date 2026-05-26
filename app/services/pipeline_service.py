@@ -11,8 +11,8 @@ from app.repositories.faq_repository import (
     get_existing_faqs,
     get_messages_by_workspace_id,
     get_workspace_context,
-    get_first_agent_id
-
+    get_first_agent_id,
+    get_rejected_faq_questions,
 )
 from app.services.cleaning_service import clean_text
 from app.services.embedding_service import (
@@ -42,6 +42,7 @@ class PipelineService:
     def __init__(self):
         self.workspace_context = None
         self.existing_faqs_embeddings = None
+        self.rejected_faqs_embeddings = None
         
     def execute_pipeline(
         self,
@@ -160,6 +161,7 @@ class PipelineService:
             # Paso 6: Cargar FAQs existentes para deduplicación
             logger.info("🔍 Paso 6: Cargando FAQs existentes...")
             self._load_existing_faqs(workspace_id)
+            self._load_rejected_faqs(workspace_id)
             
             existing_answers = [row["answer"] for row in get_existing_faqs_answers(workspace_id)]
             agent_texts      = [row["text"] for row in get_agent_texts(workspace_id)]
@@ -215,6 +217,18 @@ class PipelineService:
                     
                     if is_duplicate:
                         logger.warning(f"  ⚠️ FAQ duplicada omitida: {faq_question}")
+                        duplicates_found += 1
+                        continue
+                    
+                    # Verificar si está en rechazadas
+                    is_rejected = is_duplicate_faq(
+                        question_embedding,
+                        self.rejected_faqs_embeddings,
+                        threshold=settings.faq_similarity_very_similar
+                    )
+                    
+                    if is_rejected:
+                        logger.warning(f"  ⚠️ FAQ rechazada previamente: {faq_question}")
                         duplicates_found += 1
                         continue
                     
@@ -409,6 +423,36 @@ class PipelineService:
         except Exception as e:
             logger.warning(f"⚠️ Could not load existing FAQs: {e}")
             self.existing_faqs_embeddings = None
+    
+    def _load_rejected_faqs(self, workspace_id: int):
+        """Carga los embeddings de FAQs rechazadas para deduplicación"""
+        try:
+            rejected_questions = get_rejected_faq_questions(workspace_id)
+            
+            if rejected_questions:
+                # Generar embeddings para cada FAQ rechazada
+                embeddings_list = []
+                for question in rejected_questions:
+                    if question:
+                        try:
+                            emb = generate_embedding(question, text_type="passage")
+                            embeddings_list.append(emb)
+                        except Exception as e:
+                            logger.warning(f"Error generando embedding para FAQ rechazada: {e}")
+                            continue
+                
+                if embeddings_list:
+                    self.rejected_faqs_embeddings = np.array(embeddings_list)
+                    logger.info(f"✅ Loaded {len(embeddings_list)} rejected FAQ embeddings")
+                else:
+                    self.rejected_faqs_embeddings = None
+            else:
+                self.rejected_faqs_embeddings = None
+                logger.info("ℹ️ No rejected FAQs found")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load rejected FAQs: {e}")
+            self.rejected_faqs_embeddings = None
     
     
     def _calculate_cluster_confidence(self, embeddings: List[List[float]]) -> float:

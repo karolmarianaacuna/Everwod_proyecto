@@ -43,7 +43,7 @@ class FAQResponse(BaseModel):
 
 class FAQReviewRequest(BaseModel):
     workspace_id: int
-    agent_id: str          # uuid
+    agent_id: Optional[str] = None          # uuid (opcional)
     question: str
     answer: str
     action: str            # "accept" o "reject"

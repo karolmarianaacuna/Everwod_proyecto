@@ -263,6 +263,7 @@ def review_faq(request: FAQReviewRequest):
             question=request.question,
             answer=request.answer,
             metadata=metadata,
+            workspace_id=request.workspace_id,
         )
         if not result_id:
             raise HTTPException(status_code=500, detail="Error guardando FAQ aceptada")

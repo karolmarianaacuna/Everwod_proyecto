@@ -1,4 +1,5 @@
 import logging
+import uuid
 
 from app.core.database import get_connection
 from psycopg2.extras import RealDictCursor
@@ -346,20 +347,39 @@ def get_agent_texts(workspace_id: int) -> list:
             conn.close()
 
 
-def save_accepted_faq(agent_id: str, question: str, answer: str, metadata: dict = None) -> int:
+def save_accepted_faq(agent_id: str, question: str, answer: str, metadata: dict = None, workspace_id: int = None) -> int:
 
     """Guarda una FAQ aceptada en agent_faqs"""
     conn = None
     try:
         conn = get_connection()
         cur = conn.cursor()
+        
+        # Si no hay agent_id, obtenerlo del workspace
+        actual_agent_id = agent_id
+        if not actual_agent_id and workspace_id:
+            query_agent = """
+                SELECT id FROM agents 
+                WHERE workspace_id = %s AND deleted_at IS NULL 
+                ORDER BY created_at ASC 
+                LIMIT 1
+            """
+            cur.execute(query_agent, (workspace_id,))
+            result = cur.fetchone()
+            actual_agent_id = result[0] if result else None
+        
+        if not actual_agent_id:
+            logger.error(f"No se pudo determinar agent_id")
+            return None
+        
+        # Generar UUID para el id
+        faq_id = str(uuid.uuid4())
+        
         query = """
-            INSERT INTO agent_faqs (agent_id, question, answer, metadata, created_at)
+            INSERT INTO agent_faqs (id, agent_id, question, answer, created_at)
             VALUES (%s, %s, %s, %s, NOW())
-            RETURNING id
         """
-        cur.execute(query, (agent_id, question, answer, metadata))
-        faq_id = cur.fetchone()[0]
+        cur.execute(query, (faq_id, actual_agent_id, question, answer))
         conn.commit()
         cur.close()
         logger.info(f"✅ FAQ aceptada guardada: {faq_id}")
@@ -374,29 +394,18 @@ def save_accepted_faq(agent_id: str, question: str, answer: str, metadata: dict 
             conn.close()
 
 
-def save_rejected_faq(workspace_id: int, agent_id: str, question: str, answer: str, metadata: dict = None) -> int:
+def save_rejected_faq(workspace_id: int, agent_id: str, question: str, answer: str, metadata: dict = None) -> str:
     """Guarda una FAQ rechazada en rejected_faqs"""
     conn = None
     try:
         conn = get_connection()
         cur = conn.cursor()
         query = """
-            INSERT INTO rejected_faqs (
-                workspace_id, agent_id, question, answer,
-                cluster_id, cluster_size, confidence, rejected_at
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+            INSERT INTO rejected_faqs (workspace_id, faq)
+            VALUES (%s, %s)
             RETURNING id
         """
-        cur.execute(query, (
-            workspace_id,
-            agent_id,
-            question,
-            answer,
-            metadata.get("cluster_id")   if metadata else None,
-            metadata.get("cluster_size")  if metadata else None,
-            metadata.get("confidence")    if metadata else None,
-        ))
+        cur.execute(query, (workspace_id, question))
         rejected_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
@@ -417,7 +426,7 @@ def get_rejected_faqs(workspace_id: int, limit: int = 1000) -> list:
     Obtiene FAQs que fueron marcadas como rechazadas para un workspace
     """
     query = """
-        SELECT id, workspace_id, agent_id, question, answer, cluster_id, cluster_size, confidence, rejected_at
+        SELECT id, workspace_id, faq, rejected_at
         FROM rejected_faqs
         WHERE workspace_id = %s
         ORDER BY rejected_at DESC
@@ -469,6 +478,36 @@ def get_accepted_faqs(workspace_id: int, limit: int = 1000) -> list:
 
     except Exception as e:
         logger.error(f"Error obteniendo accepted FAQs: {e}", exc_info=True)
+        return []
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_rejected_faq_questions(workspace_id: int) -> list:
+    """
+    Obtiene solo las preguntas de FAQs rechazadas para un workspace.
+    Se usa para deduplicación en el pipeline.
+    """
+    query = """
+        SELECT faq FROM rejected_faqs
+        WHERE workspace_id = %s
+        ORDER BY rejected_at DESC
+    """
+
+    conn = None
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(query, (workspace_id,))
+        rows = cur.fetchall()
+        cur.close()
+        return [row[0] for row in rows if row[0]]
+
+    except Exception as e:
+        logger.error(f"Error obteniendo preguntas rechazadas: {e}", exc_info=True)
         return []
 
     finally:
