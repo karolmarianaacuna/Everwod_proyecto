@@ -410,3 +410,67 @@ def save_rejected_faq(workspace_id: int, agent_id: str, question: str, answer: s
     finally:
         if conn:
             conn.close()
+
+
+def get_rejected_faqs(workspace_id: int, limit: int = 1000) -> list:
+    """
+    Obtiene FAQs que fueron marcadas como rechazadas para un workspace
+    """
+    query = """
+        SELECT id, workspace_id, agent_id, question, answer, cluster_id, cluster_size, confidence, rejected_at
+        FROM rejected_faqs
+        WHERE workspace_id = %s
+        ORDER BY rejected_at DESC
+        LIMIT %s
+    """
+
+    conn = None
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(query, (workspace_id, limit))
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+
+    except Exception as e:
+        logger.error(f"Error obteniendo rejected FAQs: {e}", exc_info=True)
+        return []
+
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_accepted_faqs(workspace_id: int, limit: int = 1000) -> list:
+    """
+    Obtiene FAQs aceptadas (agent_faqs) para un workspace
+    """
+    query = """
+        SELECT af.id, a.workspace_id, af.question, af.answer, af.metadata, af.created_at
+        FROM agent_faqs af
+        INNER JOIN agents a ON af.agent_id = a.id
+        WHERE a.workspace_id = %s
+          AND af.deleted_at IS NULL
+        ORDER BY af.created_at DESC
+        LIMIT %s
+    """
+
+    conn = None
+
+    try:
+        conn = get_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(query, (workspace_id, limit))
+        rows = cur.fetchall()
+        cur.close()
+        return rows
+
+    except Exception as e:
+        logger.error(f"Error obteniendo accepted FAQs: {e}", exc_info=True)
+        return []
+
+    finally:
+        if conn:
+            conn.close()

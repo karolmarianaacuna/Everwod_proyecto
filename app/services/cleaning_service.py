@@ -5,6 +5,34 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+USELESS_MESSAGES = {
+    "hola", "holi", "buenas", "buen día", "buen dia",
+    "buenas tardes", "buenas noches",
+    "gracias", "muchas gracias", "mil gracias",
+    "ok", "okay", "listo", "perfecto",
+    "si", "sí", "claro", "vale"
+}
+
+def is_useless_message(text: str) -> bool:
+    if not text:
+        return True
+
+    text = text.lower().strip()
+
+    if text in USELESS_MESSAGES:
+        return True
+
+    if len(text.split()) < settings.min_text_length:
+        return True
+
+    if re.match(r"^\d{1,2}(:\d{2})?\s?(am|pm)?$", text):
+        return True
+
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", text):
+        return True
+
+    return False
+
 # Abreviaciones comunes
 ABBREVIATIONS = {
 
@@ -72,13 +100,10 @@ def normalize(text):
 def clean_text(text):
     if not text:
         return ""
+
     normalized = normalize(text)
 
-    # Filtrar mensajes muy cortos
-    if len(normalized.split()) < settings.min_text_length:
+    if is_useless_message(normalized):
         return ""
-    
-   
 
     return normalized
-    

@@ -16,6 +16,7 @@ from app.services.pipeline_service import PipelineService
 from app.services.job_service import FAQJobs, MaintenanceJobs
 from app.repositories.faq_repository import get_existing_faqs, get_all_workspaces
 from app.repositories.faq_repository import save_accepted_faq, save_rejected_faq
+from app.repositories.faq_repository import get_rejected_faqs, get_accepted_faqs
 from app.models.models import FAQReviewRequest
 
 from app.models.models import (
@@ -199,6 +200,48 @@ def get_workspace_faqs(workspace_id: int):
             status_code=500,
             detail=f"Error fetching FAQs: {str(e)}"
         )
+
+
+@app.get(
+    "/api/v1/workspaces/{workspace_id}/rejected-faqs",
+    tags=["Workspaces"],
+    summary="Obtener FAQs rechazadas para un workspace"
+)
+def get_workspace_rejected_faqs(workspace_id: int):
+    try:
+        logger.info(f"🔍 Obteniendo FAQs rechazadas para workspace {workspace_id}...")
+        faqs = get_rejected_faqs(workspace_id)
+        return {
+            "status": "success",
+            "workspace_id": workspace_id,
+            "count": len(faqs),
+            "faqs": faqs,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo rejected FAQs: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching rejected FAQs: {str(e)}")
+
+
+@app.get(
+    "/api/v1/workspaces/{workspace_id}/accepted-faqs",
+    tags=["Workspaces"],
+    summary="Obtener FAQs aceptadas para un workspace"
+)
+def get_workspace_accepted_faqs(workspace_id: int):
+    try:
+        logger.info(f"🔍 Obteniendo FAQs aceptadas para workspace {workspace_id}...")
+        faqs = get_accepted_faqs(workspace_id)
+        return {
+            "status": "success",
+            "workspace_id": workspace_id,
+            "count": len(faqs),
+            "faqs": faqs,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo accepted FAQs: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error fetching accepted FAQs: {str(e)}")
 
 
 

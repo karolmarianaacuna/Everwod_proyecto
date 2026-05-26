@@ -1,4 +1,5 @@
 import logging
+from pyexpat.errors import messages
 from typing import List
 import numpy as np
 
@@ -65,6 +66,7 @@ class PipelineService:
             Dict con FAQs generadas y estadísticas del proceso
         """
         logger.info(f"🚀 Iniciando pipeline para workspace: {workspace_id}")
+        logger.debug(f"execute_pipeline called with workspace_id={workspace_id} limit={limit}")
         
         try:
             # Paso 0: Obtener contexto del workspace
@@ -80,7 +82,9 @@ class PipelineService:
             
             # Paso 1: Obtener mensajes de BD
             logger.info("📥 Paso 1: Obteniendo mensajes de la BD...")
+            logger.debug("Calling get_messages_by_workspace_id...")
             messages_from_db = get_messages_by_workspace_id(workspace_id, limit=limit)
+            logger.debug(f"messages_from_db count: {len(messages_from_db) if messages_from_db is not None else 'None'}")
             
             if not messages_from_db:
                 logger.warning(f"⚠️ No hay mensajes en la BD para workspace {workspace_id}")
@@ -109,7 +113,9 @@ class PipelineService:
             
             # Paso 2: Limpieza de mensajes
             logger.info("📝 Paso 2: Limpiando mensajes...")
+            logger.debug("Starting _clean_messages")
             cleaned_messages = self._clean_messages(message_texts)
+            logger.debug(f"cleaned_messages count: {len(cleaned_messages)}")
             
             if not cleaned_messages:
                 logger.warning("⚠️ No hay mensajes válidos después de limpiar")
@@ -132,7 +138,9 @@ class PipelineService:
             
             # Paso 3: Generar embeddings de los mensajes limpios
             logger.info("🧠 Paso 3: Generando embeddings...")
-            embeddings = self._generate_embeddings(cleaned_messages)
+            logger.debug("Calling _generate_embeddings")
+            cleaned_messages, embeddings = self._generate_embeddings(cleaned_messages)
+            logger.debug(f"embeddings count: {len(embeddings) if embeddings else 0}")
             
             if not embeddings:
                 logger.error("❌ No se pudieron generar embeddings")
@@ -140,7 +148,9 @@ class PipelineService:
             
             # Paso 4: Clustering
             logger.info("🎯 Paso 4: Clustering de mensajes...")
+            logger.debug("Calling cluster_embeddings")
             labels = cluster_embeddings(embeddings)
+            logger.debug(f"labels length: {len(labels) if labels is not None else 'None'}")
             
             # Paso 5: Agrupar mensajes por cluster
             logger.info("📦 Paso 5: Agrupando mensajes...")
@@ -204,8 +214,9 @@ class PipelineService:
                     )
                     
                     if is_duplicate:
-                        logger.warning(f"  ⚠️ FAQ similar a existentes: {faq_question}")
+                        logger.warning(f"  ⚠️ FAQ duplicada omitida: {faq_question}")
                         duplicates_found += 1
+                        continue
                     
                     # Generar respuesta
                     
@@ -344,16 +355,29 @@ class PipelineService:
         return cleaned
     
     def _generate_embeddings(self, messages: List[str]) -> List[List[float]]:
-        """Genera embeddings para una lista de mensajes"""
         embeddings = []
+        valid_messages = []
+
         for msg in messages:
             try:
                 emb = generate_embedding(msg, text_type="passage")
+
+                if emb is None:
+                    continue
+
+                emb_array = np.array(emb)
+
+                if np.isnan(emb_array).any():
+                    continue
+
                 embeddings.append(emb)
+                valid_messages.append(msg)
+
             except Exception as e:
                 logger.error(f"Error generando embedding: {e}")
                 continue
-        return embeddings
+
+        return valid_messages, embeddings
     
     def _load_existing_faqs(self, workspace_id: int):
         """Carga los embeddings de FAQs existentes para deduplicación"""
@@ -386,31 +410,6 @@ class PipelineService:
             logger.warning(f"⚠️ Could not load existing FAQs: {e}")
             self.existing_faqs_embeddings = None
     
-    #Esto nadie lo utiliza 
-    """ def _save_faqs(self, workspace_id: int, agent_id: int, faqs: List[FAQResponse]) -> int:
-        
-        saved_count = 0
-        
-        for faq in faqs:
-            try:
-                faq_id = save_faq(
-                    workspace_id=workspace_id,
-                    question=faq.question,
-                    agent_id=agent_id,
-                    metadata={
-                        "cluster_id": faq.cluster_id,
-                        "cluster_size": faq.cluster_size,
-                        "keywords": faq.keywords,
-                        "confidence": faq.confidence,
-                    }
-                )
-                if faq_id:
-                    saved_count += 1
-            except Exception as e:
-                logger.error(f"Error saving FAQ: {e}")
-                continue
-        
-        return saved_count """
     
     def _calculate_cluster_confidence(self, embeddings: List[List[float]]) -> float:
         """

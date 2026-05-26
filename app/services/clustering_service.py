@@ -113,8 +113,27 @@ def is_duplicate_faq(
     if threshold is None:
         threshold = settings.clustering_duplicate_threshold
 
+    if new_question_emb is None:
+        return False
+
+    new_emb = np.array(new_question_emb, dtype=np.float64)
+
+    if new_emb.ndim != 1 or np.isnan(new_emb).any():
+        return False
+
     if existing_faqs_embs is None or len(existing_faqs_embs) == 0:
         return False
-    
-    similarities = cosine_similarity([new_question_emb], existing_faqs_embs)
+
+    existing = np.array(existing_faqs_embs, dtype=np.float64)
+
+    if existing.ndim != 2:
+        return False
+
+    existing = existing[~np.isnan(existing).any(axis=1)]
+
+    if len(existing) == 0:
+        return False
+
+    similarities = cosine_similarity([new_emb], existing)
+
     return bool(np.max(similarities) >= threshold)

@@ -45,39 +45,27 @@ def refine_question_to_faq(
 
     prompt = f"""Eres un experto en análisis de conversaciones y generación de preguntas FAQ para empresas de atención al cliente.
 
-=== CONTEXTO DE LA EMPRESA ===
+
 Nombre: {workspace_name}
 Categoría: {workspace_category}
 
-=== INFORMACIÓN REAL DEL NEGOCIO ===
+
 {contexto_negocio if contexto_negocio else "No hay información adicional disponible."}
 
-=== MENSAJE REPRESENTATIVO DEL TEMA ===
 {medoid_message}
 
-=== MENSAJES DEL CLUSTER ===
+
 {ejemplos}
 
-=== TU TAREA ===
+
 Usando la información real del negocio como referencia, analiza si los mensajes representan una duda o necesidad real que un cliente tendría sobre los servicios de {workspace_name}.
 
-=== CRITERIOS PARA MARCAR COMO INVALIDO ===
-Responde exactamente INVALIDO si los mensajes cumplen CUALQUIERA de estas condiciones:
-- Son saludos o despedidas (hola, buenos días, bye, gracias, etc.)
-- Son respuestas de una sola palabra (sí, no, ok, claro, listo, dale, etc.)
-- Son solo nombres, teléfonos, direcciones o datos de contacto
-- No tienen relación con los servicios reales de {workspace_name} descritos arriba
-- Son etiquetas del sistema: [PHONE], [EMAIL], [NAME], [URL], [CARD]
-- No tienen contexto suficiente para entender la intención del cliente
-
-=== CRITERIOS PARA GENERAR UNA PREGUNTA FAQ ===
-Si los mensajes SÍ representan una duda real:
-- Genera UNA SOLA pregunta FAQ, máximo 15 palabras
-- Redactada desde la perspectiva del cliente
-- Basada únicamente en los servicios reales descritos en la información del negocio
-- Detecta el idioma predominante de los mensajes y responde en ese idioma
-- Sin nombres propios, precios, horarios, links, correos ni teléfonos
-- Usable directamente en una sección FAQ pública sin edición
+Genera UNA SOLA pregunta FAQ, máximo 15 palabras:
+-Redactada desde la perspectiva del cliente
+-únicamente en los servicios reales descritos en la información del negocio
+-Detecta el idioma predominante de los mensajes y responde en ese idioma
+-Sin nombres propios, precios, horarios, links, correos ni teléfonos
+-Usable directamente en una sección FAQ pública sin edición
 
 === FORMATO ===
 Solo la pregunta con signos de interrogación, o la palabra INVALIDO. Sin explicaciones."""
